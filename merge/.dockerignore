@@ -1,0 +1,36 @@
+# Docker ignore file for merge script
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Documentation (keep README, but ignore others)
+*.md
+!README.md
+
+# OS files
+.DS_Store
+Thumbs.db
