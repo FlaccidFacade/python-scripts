@@ -1,0 +1,5 @@
+# Requirements for merge.py script
+# No external dependencies required - uses standard library subprocess
+# For testing:
+pytest>=7.4.0
+pytest-cov>=4.1.0
