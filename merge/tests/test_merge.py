@@ -156,6 +156,38 @@ class TestRepoMerger:
         assert "repo1" in result.stdout or "Initial commit" in result.stdout
         assert len(result.stdout.split("\n")) > 3  # At least multiple commits
 
+    def test_merge_with_recursive_ours_strategy(self, temp_dir, sample_repos):
+        """Test merging repositories with recursive-ours strategy."""
+        target = temp_dir / "merged_recursive_ours"
+        merger = RepoMerger(str(target), [str(r) for r in sample_repos], verbose=True)
+
+        merger.merge(strategy="recursive-ours")
+
+        # Verify target repository exists
+        assert target.exists()
+        assert (target / ".git").exists()
+
+        # Verify files from all repos exist
+        assert (target / "file1.txt").exists()
+        assert (target / "file2.txt").exists()
+        assert (target / "file3.txt").exists()
+
+    def test_merge_with_custom_strategy(self, temp_dir, sample_repos):
+        """Test merging repositories with custom strategy option."""
+        target = temp_dir / "merged_custom"
+        merger = RepoMerger(str(target), [str(r) for r in sample_repos], verbose=True)
+
+        merger.merge(strategy="theirs", custom_strategy="theirs")
+
+        # Verify target repository exists
+        assert target.exists()
+        assert (target / ".git").exists()
+
+        # Verify files from all repos exist
+        assert (target / "file1.txt").exists()
+        assert (target / "file2.txt").exists()
+        assert (target / "file3.txt").exists()
+
     def test_merge_with_ours_strategy_conflicts(self, temp_dir, sample_repos):
         """Test merging repositories with ours strategy leaves conflicts unresolved."""
         target = temp_dir / "merged_flat"

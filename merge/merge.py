@@ -74,13 +74,20 @@ class RepoMerger:
         elif not (self.target_repo / ".git").exists():
             raise ValueError(f"Target path exists but is not a git repository: {self.target_repo}")
 
-    def _merge_repo(self, source_repo: Path, strategy: str = "ours"):
+    def _merge_repo(self, source_repo: Path, strategy: str = "ours", custom_strategy: Optional[str] = None):
         """
         Merge a single repository into the target.
 
         Args:
             source_repo: Path to source repository
-            strategy: Conflict resolution strategy ('ours', 'theirs', or 'manual')
+            strategy: Conflict resolution strategy (built-in or custom)
+            custom_strategy: Custom git merge strategy option (e.g., 'ours', 'theirs', 'patience')
+        
+        Merge Context:
+            - "ours" refers to the current state in the target repository (HEAD)
+            - "theirs" refers to the incoming changes from the source repository
+            - When merging multiple repos sequentially, each merge builds on the previous
+              (e.g., repo1 merges into target, then repo2 merges into target+repo1, etc.)
         """
         repo_name = source_repo.name
         print(f"\nMerging repository: {source_repo.name}")
@@ -157,11 +164,18 @@ class RepoMerger:
 
         # Merge the temporary branch with allow-unrelated-histories
         print(f"  Merging history with strategy: {strategy}...")
+        print(f"  Context: 'ours' = current target state, 'theirs' = incoming from {repo_name}")
         
         merge_cmd = ["git", "merge", "--allow-unrelated-histories"]
         
-        if strategy == "ours":
-            # Strategy A: Keep all changes, leave conflicts unresolved
+        # Handle custom strategy option
+        if custom_strategy:
+            print(f"  Using custom merge strategy: {custom_strategy}")
+            merge_cmd.extend(["-X", custom_strategy, "-m", f"Merge {repo_name} repository", merge_branch])
+            self._run_command(merge_cmd, cwd=self.target_repo)
+        
+        elif strategy == "ours":
+            # Keep all changes, leave conflicts unresolved (commit with markers)
             merge_cmd.extend(["-m", f"Merge {repo_name} repository", merge_branch])
             result = self._run_command(merge_cmd, cwd=self.target_repo, check=False)
             
@@ -186,12 +200,44 @@ class RepoMerger:
                     raise subprocess.CalledProcessError(result.returncode, merge_cmd)
         
         elif strategy == "theirs":
-            # Strategy B: Keep all latest changes (from source repo)
+            # Accept all changes from source repository
             merge_cmd.extend(["-X", "theirs", "-m", f"Merge {repo_name} repository", merge_branch])
             self._run_command(merge_cmd, cwd=self.target_repo)
         
+        elif strategy == "ours-only":
+            # Discard all changes from source repository (keep only current state)
+            merge_cmd.extend(["-s", "ours", "-m", f"Merge {repo_name} repository (keeping current state)", merge_branch])
+            self._run_command(merge_cmd, cwd=self.target_repo)
+        
+        elif strategy == "recursive-ours":
+            # Favor our changes in conflicts (but still merge non-conflicting changes)
+            merge_cmd.extend(["-X", "ours", "-m", f"Merge {repo_name} repository", merge_branch])
+            self._run_command(merge_cmd, cwd=self.target_repo)
+        
+        elif strategy == "patience":
+            # Use patience diff algorithm for better conflict resolution
+            merge_cmd.extend(["-X", "patience", "-m", f"Merge {repo_name} repository", merge_branch])
+            result = self._run_command(merge_cmd, cwd=self.target_repo, check=False)
+            
+            if result.returncode != 0:
+                # Handle any conflicts
+                status_result = self._run_command(
+                    ["git", "status", "--porcelain"],
+                    cwd=self.target_repo
+                )
+                if any(line.startswith("UU") or line.startswith("AA") or line.startswith("DD") for line in status_result.stdout.split("\n")):
+                    print(f"  ⚠ Merge conflicts detected even with patience. Adding all changes and committing with conflicts.")
+                    self._run_command(["git", "add", "-A"], cwd=self.target_repo)
+                    self._run_command(
+                        ["git", "commit", "--no-edit", "-m", f"Merge {repo_name} repository with conflicts (patience)"],
+                        cwd=self.target_repo,
+                        check=False
+                    )
+                else:
+                    raise subprocess.CalledProcessError(result.returncode, merge_cmd)
+        
         elif strategy == "manual":
-            # Strategy C: Open prompt for user to resolve conflicts
+            # Open prompt for user to resolve conflicts
             merge_cmd.extend(["-m", f"Merge {repo_name} repository", merge_branch])
             result = self._run_command(merge_cmd, cwd=self.target_repo, check=False)
             
@@ -221,6 +267,10 @@ class RepoMerger:
                 else:
                     # If it's not a conflict, re-raise the error
                     raise subprocess.CalledProcessError(result.returncode, merge_cmd)
+        
+        else:
+            # Unknown strategy - raise error
+            raise ValueError(f"Unknown merge strategy: {strategy}. Use one of the built-in strategies or provide --custom-strategy.")
 
         # Clean up
         self._run_command(
@@ -231,15 +281,23 @@ class RepoMerger:
 
         print(f"  ✓ Successfully merged {repo_name}")
 
-    def merge(self, strategy: str = "ours"):
+    def merge(self, strategy: str = "ours", custom_strategy: Optional[str] = None):
         """
         Perform the merge operation.
 
         Args:
-            strategy: Conflict resolution strategy ('ours', 'theirs', or 'manual')
+            strategy: Conflict resolution strategy (built-in or custom)
+            custom_strategy: Custom git merge strategy option to pass to git merge -X
         """
         print(f"Merging {len(self.source_repos)} repositories into {self.target_repo}")
         print(f"Conflict resolution strategy: {strategy}")
+        if custom_strategy:
+            print(f"Custom strategy option: {custom_strategy}")
+        
+        print(f"\nMerge context explanation:")
+        print(f"  - Each repository is merged sequentially into the target")
+        print(f"  - 'ours' = current state in target (accumulates with each merge)")
+        print(f"  - 'theirs' = incoming changes from each source repository")
 
         # Validate all source repositories
         self._validate_repos()
@@ -248,8 +306,9 @@ class RepoMerger:
         self._initialize_target_repo()
 
         # Merge each source repository
-        for source_repo in self.source_repos:
-            self._merge_repo(source_repo, strategy)
+        for i, source_repo in enumerate(self.source_repos, 1):
+            print(f"\n[{i}/{len(self.source_repos)}] Processing {source_repo.name}")
+            self._merge_repo(source_repo, strategy, custom_strategy)
 
         print(f"\n✓ Successfully merged all repositories into {self.target_repo}")
         print(f"\nTo view the result:")
@@ -273,10 +332,21 @@ def main():
     )
     parser.add_argument(
         "--strategy",
-        choices=["ours", "theirs", "manual"],
+        choices=["ours", "theirs", "ours-only", "recursive-ours", "patience", "manual"],
         default="ours",
-        help="Conflict resolution strategy: 'ours' (keep all changes, leave conflicts unresolved), "
-             "'theirs' (accept all changes from source repos), 'manual' (prompt user to resolve conflicts)"
+        help="Conflict resolution strategy: "
+             "'ours' (commit with conflict markers), "
+             "'theirs' (accept incoming changes), "
+             "'ours-only' (discard incoming, keep current), "
+             "'recursive-ours' (favor current in conflicts), "
+             "'patience' (better diff algorithm), "
+             "'manual' (interactive resolution)"
+    )
+    parser.add_argument(
+        "--custom-strategy",
+        metavar="OPTION",
+        help="Custom git merge strategy option (e.g., 'ignore-space-change', 'rename-threshold=50'). "
+             "This is passed to 'git merge -X <OPTION>'. Overrides --strategy if provided."
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -292,7 +362,7 @@ def main():
 
     try:
         merger = RepoMerger(args.target_repo, args.source_repos, verbose=args.verbose)
-        merger.merge(strategy=args.strategy)
+        merger.merge(strategy=args.strategy, custom_strategy=args.custom_strategy)
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)

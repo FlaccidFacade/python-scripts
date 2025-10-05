@@ -79,9 +79,14 @@ docker run --rm \
   # Keep conflicts unresolved (default)
   python3 merge.py --strategy ours /path/to/target /path/to/repo1 /path/to/repo2
   
-  # Resolve conflicts manually as they occur
-  python3 merge.py --strategy manual /path/to/target /path/to/repo1 /path/to/repo2
+  # Favor current state in conflicts
+  python3 merge.py --strategy recursive-ours /path/to/target /path/to/repo1 /path/to/repo2
+  
+  # Use custom git merge options
+  python3 merge.py --custom-strategy ignore-space-change /path/to/target /path/to/repo1 /path/to/repo2
   ```
+  
+  See [MERGE_STRATEGIES.md](MERGE_STRATEGIES.md) for all strategies and detailed explanations.
 
 ## Next Steps
 

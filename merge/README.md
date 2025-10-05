@@ -33,34 +33,46 @@ This will:
 
 ### Options
 
-- `--strategy {ours,theirs,manual}`: Choose conflict resolution strategy (default: ours)
+- `--strategy {ours,theirs,ours-only,recursive-ours,patience,manual}`: Choose conflict resolution strategy (default: ours)
   - `ours`: Keep all changes, commit with conflict markers in files
   - `theirs`: Automatically accept all changes from source repositories
+  - `ours-only`: Discard incoming changes, keep current state only
+  - `recursive-ours`: Favor current state in conflicts, merge non-conflicting changes
+  - `patience`: Use patience diff algorithm for better conflict resolution
   - `manual`: Prompt user to manually resolve conflicts as they occur
+- `--custom-strategy OPTION`: Pass custom git merge strategy option (e.g., 'ignore-space-change')
 - `-v, --verbose`: Enable verbose output to see all git commands
 - `-h, --help`: Show help message
 
+For detailed explanation of strategies and merge context, see [MERGE_STRATEGIES.md](MERGE_STRATEGIES.md).
+
 ### Conflict Resolution Strategies
 
-When merging repositories with conflicting files (e.g., both have a README.md), you can choose how to handle conflicts:
+When merging repositories with conflicting files (e.g., both have a README.md), you can choose how to handle conflicts. See [MERGE_STRATEGIES.md](MERGE_STRATEGIES.md) for comprehensive documentation.
 
-**Strategy A (ours)** - Default:
+**Quick Examples**:
+
 ```bash
+# Default - commits with conflict markers
 python3 merge.py /path/to/merged-repo /path/to/repo1 /path/to/repo2
-```
-Commits all changes with conflict markers preserved in files. You can resolve conflicts later.
 
-**Strategy B (theirs)**:
-```bash
+# Accept incoming changes automatically
 python3 merge.py --strategy theirs /path/to/merged-repo /path/to/repo1 /path/to/repo2
-```
-Automatically resolves conflicts by accepting changes from source repositories.
 
-**Strategy C (manual)**:
-```bash
-python3 merge.py --strategy manual /path/to/merged-repo /path/to/repo1 /path/to/repo2
+# Favor current state in conflicts
+python3 merge.py --strategy recursive-ours /path/to/merged-repo /path/to/repo1 /path/to/repo2
+
+# Use custom git merge options
+python3 merge.py --custom-strategy ignore-all-space /path/to/merged-repo /path/to/repo1 /path/to/repo2
 ```
-Pauses when conflicts occur and prompts you to resolve them interactively.
+
+**Understanding "ours" vs "theirs"**:
+- When merging repo1, repo2, repo3 into target:
+  - "ours" = current state in target (accumulates: empty → repo1 → repo1+repo2 → repo1+repo2+repo3)
+  - "theirs" = incoming changes from each source repo being merged
+- Each merge builds on the previous state sequentially
+
+See [MERGE_STRATEGIES.md](MERGE_STRATEGIES.md) for detailed examples and explanations.
 
 ## Requirements
 
