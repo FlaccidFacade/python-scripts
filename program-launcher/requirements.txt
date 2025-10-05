@@ -1,0 +1,5 @@
+# Requirements for launcher.py script
+# No external dependencies required - uses standard library
+# For testing:
+pytest>=7.4.0
+pytest-cov>=4.1.0
