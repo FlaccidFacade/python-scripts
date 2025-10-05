@@ -6,7 +6,7 @@ A Python script to merge multiple git repositories into a single repository, pre
 
 - Merges multiple git repositories into one target repository
 - Preserves complete git history from all source repositories
-- Option to place each repository in its own subdirectory (recommended)
+- Three conflict resolution strategies: automatic (theirs), unresolved (ours), or manual
 - Handles unrelated histories properly
 - No external dependencies (uses standard library)
 
@@ -28,24 +28,51 @@ python3 merge.py /path/to/merged-repo /path/to/repo1 /path/to/repo2 /path/to/rep
 
 This will:
 1. Create the target repository if it doesn't exist
-2. Merge each source repository, placing content in subdirectories (repo1/, repo2/, repo3/)
+2. Merge each source repository using git merge (conflicts resolved automatically with 'ours' strategy by default)
 3. Preserve all git history from each repository
 
 ### Options
 
-- `--no-subdirectories`: Merge without creating subdirectories (files from different repos may conflict)
+- `--strategy {ours,theirs,ours-only,recursive-ours,patience,manual}`: Choose conflict resolution strategy (default: ours)
+  - `ours`: Keep all changes, commit with conflict markers in files
+  - `theirs`: Automatically accept all changes from source repositories
+  - `ours-only`: Discard incoming changes, keep current state only
+  - `recursive-ours`: Favor current state in conflicts, merge non-conflicting changes
+  - `patience`: Use patience diff algorithm for better conflict resolution
+  - `manual`: Prompt user to manually resolve conflicts as they occur
+- `--custom-strategy OPTION`: Pass custom git merge strategy option (e.g., 'ignore-space-change')
 - `-v, --verbose`: Enable verbose output to see all git commands
 - `-h, --help`: Show help message
 
-### Without Subdirectories
+For detailed explanation of strategies and merge context, see [MERGE_STRATEGIES.md](MERGE_STRATEGIES.md).
 
-If you want to merge repositories without subdirectories (all files in root):
+### Conflict Resolution Strategies
+
+When merging repositories with conflicting files (e.g., both have a README.md), you can choose how to handle conflicts. See [MERGE_STRATEGIES.md](MERGE_STRATEGIES.md) for comprehensive documentation.
+
+**Quick Examples**:
 
 ```bash
-python3 merge.py --no-subdirectories /path/to/merged-repo /path/to/repo1 /path/to/repo2
+# Default - commits with conflict markers
+python3 merge.py /path/to/merged-repo /path/to/repo1 /path/to/repo2
+
+# Accept incoming changes automatically
+python3 merge.py --strategy theirs /path/to/merged-repo /path/to/repo1 /path/to/repo2
+
+# Favor current state in conflicts
+python3 merge.py --strategy recursive-ours /path/to/merged-repo /path/to/repo1 /path/to/repo2
+
+# Use custom git merge options
+python3 merge.py --custom-strategy ignore-all-space /path/to/merged-repo /path/to/repo1 /path/to/repo2
 ```
 
-**Warning**: This may cause file conflicts if repositories have files with the same names.
+**Understanding "ours" vs "theirs"**:
+- When merging repo1, repo2, repo3 into target:
+  - "ours" = current state in target (accumulates: empty → repo1 → repo1+repo2 → repo1+repo2+repo3)
+  - "theirs" = incoming changes from each source repo being merged
+- Each merge builds on the previous state sequentially
+
+See [MERGE_STRATEGIES.md](MERGE_STRATEGIES.md) for detailed examples and explanations.
 
 ## Requirements
 
@@ -111,8 +138,8 @@ docker run --rm -v /path/to/source1:/repos/source1:ro \
    - Adds the source as a git remote
    - Fetches all branches and history
    - Checks out the source content
-   - (Optional) Moves files to a subdirectory
    - Merges into the target repository using `--allow-unrelated-histories`
+   - Applies the selected conflict resolution strategy
 4. **Result**: A single repository containing all files and complete git history
 
 ## Example Scenario
@@ -137,12 +164,12 @@ Result:
 ```
 /projects/monorepo/
 ├── .git/            (contains full history)
-├── frontend/        (all frontend files)
-├── backend/         (all backend files)
-└── infrastructure/  (all infrastructure files)
+├── (all files from frontend, backend, and infrastructure merged)
 ```
 
 You can now run `git log --graph --oneline --all` to see the complete history from all three repositories.
+
+**Note**: If the repositories have conflicting files, use the `--strategy` option to control how conflicts are resolved.
 
 ## Notes
 
