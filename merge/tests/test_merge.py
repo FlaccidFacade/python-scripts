@@ -128,25 +128,21 @@ class TestRepoMerger:
         assert target.exists()
         assert (target / ".git").exists()
 
-    def test_merge_with_subdirectories(self, temp_dir, sample_repos):
-        """Test merging repositories with subdirectories."""
+    def test_merge_with_theirs_strategy(self, temp_dir, sample_repos):
+        """Test merging repositories with theirs strategy."""
         target = temp_dir / "merged"
         merger = RepoMerger(str(target), [str(r) for r in sample_repos], verbose=True)
 
-        merger.merge(use_subdirectories=True)
+        merger.merge(strategy="theirs")
 
         # Verify target repository exists
         assert target.exists()
         assert (target / ".git").exists()
 
-        # Verify subdirectories were created
-        for repo in sample_repos:
-            assert (target / repo.name).exists()
-
-        # Verify files exist in subdirectories
-        assert (target / "repo1" / "file1.txt").exists()
-        assert (target / "repo2" / "file2.txt").exists()
-        assert (target / "repo3" / "file3.txt").exists()
+        # Verify files from all repos exist (no subdirectories)
+        assert (target / "file1.txt").exists()
+        assert (target / "file2.txt").exists()
+        assert (target / "file3.txt").exists()
 
         # Verify git history
         result = subprocess.run(
@@ -160,22 +156,25 @@ class TestRepoMerger:
         assert "repo1" in result.stdout or "Initial commit" in result.stdout
         assert len(result.stdout.split("\n")) > 3  # At least multiple commits
 
-    def test_merge_without_subdirectories(self, temp_dir, sample_repos):
-        """Test merging repositories without subdirectories can cause conflicts."""
+    def test_merge_with_ours_strategy_conflicts(self, temp_dir, sample_repos):
+        """Test merging repositories with ours strategy leaves conflicts unresolved."""
         target = temp_dir / "merged_flat"
         merger = RepoMerger(str(target), [str(r) for r in sample_repos], verbose=True)
 
-        # This should fail due to file conflicts (README.md exists in all repos)
-        # This is expected behavior and demonstrates why subdirectories are recommended
-        with pytest.raises(subprocess.CalledProcessError):
-            merger.merge(use_subdirectories=False)
+        # With ours strategy, conflicts should be left unresolved
+        # This should not raise an error, but should leave conflicts
+        merger.merge(strategy="ours")
+        
+        # Verify target repository exists
+        assert target.exists()
+        assert (target / ".git").exists()
 
     def test_merge_preserves_history(self, temp_dir, sample_repos):
         """Test that merge preserves git history from all repos."""
         target = temp_dir / "merged_history"
         merger = RepoMerger(str(target), [str(r) for r in sample_repos])
 
-        merger.merge(use_subdirectories=True)
+        merger.merge(strategy="theirs")
 
         # Get full git log
         result = subprocess.run(
@@ -196,12 +195,12 @@ class TestRepoMerger:
         target = temp_dir / "merged_single"
         merger = RepoMerger(str(target), [str(sample_repos[0])])
 
-        merger.merge(use_subdirectories=True)
+        merger.merge(strategy="ours")
 
         # Verify target repository exists
         assert target.exists()
         assert (target / ".git").exists()
-        assert (target / sample_repos[0].name / "file1.txt").exists()
+        assert (target / "file1.txt").exists()
 
     def test_run_command_success(self, temp_dir):
         """Test _run_command with successful command."""

@@ -44,13 +44,7 @@ Merge three separate projects into a monorepo:
 python3 merge.py ~/monorepo ~/projects/frontend ~/projects/backend ~/projects/docs
 ```
 
-This creates:
-```
-monorepo/
-├── frontend/    (all files + git history)
-├── backend/     (all files + git history)
-└── docs/        (all files + git history)
-```
+This creates a merged repository with all files from frontend, backend, and docs, along with their complete git history.
 
 ## Docker Quick Start
 
@@ -77,9 +71,16 @@ docker run --rm \
   python3 merge.py -v /path/to/target /path/to/repo1 /path/to/repo2
   ```
 
-- **Merge without subdirectories** (not recommended - may cause conflicts):
+- **Choose conflict resolution strategy**:
   ```bash
-  python3 merge.py --no-subdirectories /path/to/target /path/to/repo1 /path/to/repo2
+  # Accept all changes from source repos (no conflicts)
+  python3 merge.py --strategy theirs /path/to/target /path/to/repo1 /path/to/repo2
+  
+  # Keep conflicts unresolved (default)
+  python3 merge.py --strategy ours /path/to/target /path/to/repo1 /path/to/repo2
+  
+  # Resolve conflicts manually as they occur
+  python3 merge.py --strategy manual /path/to/target /path/to/repo1 /path/to/repo2
   ```
 
 ## Next Steps

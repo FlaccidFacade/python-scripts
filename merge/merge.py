@@ -74,16 +74,16 @@ class RepoMerger:
         elif not (self.target_repo / ".git").exists():
             raise ValueError(f"Target path exists but is not a git repository: {self.target_repo}")
 
-    def _merge_repo(self, source_repo: Path, subdirectory: Optional[str] = None):
+    def _merge_repo(self, source_repo: Path, strategy: str = "ours"):
         """
         Merge a single repository into the target.
 
         Args:
             source_repo: Path to source repository
-            subdirectory: Optional subdirectory name in target repo
+            strategy: Conflict resolution strategy ('ours', 'theirs', or 'manual')
         """
-        repo_name = subdirectory or source_repo.name
-        print(f"\nMerging repository: {source_repo.name} -> {repo_name}")
+        repo_name = source_repo.name
+        print(f"\nMerging repository: {source_repo.name}")
 
         # Add the source repository as a remote
         remote_name = f"source_{repo_name}"
@@ -136,26 +136,6 @@ class RepoMerger:
             check=False
         )
 
-        # Move all files to subdirectory if specified
-        if subdirectory:
-            print(f"  Moving files to subdirectory: {subdirectory}")
-            # Create the subdirectory
-            (self.target_repo / subdirectory).mkdir(parents=True, exist_ok=True)
-
-            # Move all files except .git to subdirectory
-            for item in self.target_repo.iterdir():
-                if item.name not in [".git", subdirectory]:
-                    dest = self.target_repo / subdirectory / item.name
-                    shutil.move(str(item), str(dest))
-
-            # Commit the move
-            self._run_command(["git", "add", "-A"], cwd=self.target_repo)
-            self._run_command(
-                ["git", "commit", "-m", f"Move {repo_name} files to {subdirectory}/ subdirectory"],
-                cwd=self.target_repo,
-                check=False
-            )
-
         # Switch back to main branch
         result = self._run_command(
             ["git", "rev-parse", "--verify", "main"],
@@ -176,11 +156,71 @@ class RepoMerger:
             )
 
         # Merge the temporary branch with allow-unrelated-histories
-        print(f"  Merging history...")
-        self._run_command(
-            ["git", "merge", "--allow-unrelated-histories", "-m", f"Merge {repo_name} repository", merge_branch],
-            cwd=self.target_repo
-        )
+        print(f"  Merging history with strategy: {strategy}...")
+        
+        merge_cmd = ["git", "merge", "--allow-unrelated-histories"]
+        
+        if strategy == "ours":
+            # Strategy A: Keep all changes, leave conflicts unresolved
+            merge_cmd.extend(["-m", f"Merge {repo_name} repository", merge_branch])
+            result = self._run_command(merge_cmd, cwd=self.target_repo, check=False)
+            
+            if result.returncode != 0:
+                # Check if there are conflicts
+                status_result = self._run_command(
+                    ["git", "status", "--porcelain"],
+                    cwd=self.target_repo
+                )
+                if any(line.startswith("UU") or line.startswith("AA") or line.startswith("DD") for line in status_result.stdout.split("\n")):
+                    print(f"  ⚠ Merge conflicts detected. Adding all changes and committing with conflicts.")
+                    # Add all files (both conflicted and non-conflicted)
+                    self._run_command(["git", "add", "-A"], cwd=self.target_repo)
+                    # Commit with conflicts marked
+                    self._run_command(
+                        ["git", "commit", "--no-edit", "-m", f"Merge {repo_name} repository with conflicts"],
+                        cwd=self.target_repo,
+                        check=False
+                    )
+                else:
+                    # If it's not a conflict, re-raise the error
+                    raise subprocess.CalledProcessError(result.returncode, merge_cmd)
+        
+        elif strategy == "theirs":
+            # Strategy B: Keep all latest changes (from source repo)
+            merge_cmd.extend(["-X", "theirs", "-m", f"Merge {repo_name} repository", merge_branch])
+            self._run_command(merge_cmd, cwd=self.target_repo)
+        
+        elif strategy == "manual":
+            # Strategy C: Open prompt for user to resolve conflicts
+            merge_cmd.extend(["-m", f"Merge {repo_name} repository", merge_branch])
+            result = self._run_command(merge_cmd, cwd=self.target_repo, check=False)
+            
+            if result.returncode != 0:
+                # Check if there are conflicts
+                status_result = self._run_command(
+                    ["git", "status", "--porcelain"],
+                    cwd=self.target_repo
+                )
+                if any(line.startswith("UU") or line.startswith("AA") or line.startswith("DD") for line in status_result.stdout.split("\n")):
+                    print(f"\n  ⚠ Merge conflicts detected!")
+                    print(f"  Please resolve the conflicts manually.")
+                    print(f"  After resolving, run:")
+                    print(f"    cd {self.target_repo}")
+                    print(f"    git add <resolved-files>")
+                    print(f"    git merge --continue")
+                    print(f"\n  Or to abort the merge:")
+                    print(f"    git merge --abort")
+                    
+                    # Wait for user input
+                    input("\n  Press Enter after you've resolved the conflicts and completed the merge...")
+                    
+                    # Verify the merge was completed
+                    merge_head = self.target_repo / ".git" / "MERGE_HEAD"
+                    if merge_head.exists():
+                        raise RuntimeError("Merge was not completed. Please complete or abort the merge before continuing.")
+                else:
+                    # If it's not a conflict, re-raise the error
+                    raise subprocess.CalledProcessError(result.returncode, merge_cmd)
 
         # Clean up
         self._run_command(
@@ -191,14 +231,15 @@ class RepoMerger:
 
         print(f"  ✓ Successfully merged {repo_name}")
 
-    def merge(self, use_subdirectories: bool = True):
+    def merge(self, strategy: str = "ours"):
         """
         Perform the merge operation.
 
         Args:
-            use_subdirectories: If True, place each repo in its own subdirectory
+            strategy: Conflict resolution strategy ('ours', 'theirs', or 'manual')
         """
         print(f"Merging {len(self.source_repos)} repositories into {self.target_repo}")
+        print(f"Conflict resolution strategy: {strategy}")
 
         # Validate all source repositories
         self._validate_repos()
@@ -208,8 +249,7 @@ class RepoMerger:
 
         # Merge each source repository
         for source_repo in self.source_repos:
-            subdirectory = source_repo.name if use_subdirectories else None
-            self._merge_repo(source_repo, subdirectory)
+            self._merge_repo(source_repo, strategy)
 
         print(f"\n✓ Successfully merged all repositories into {self.target_repo}")
         print(f"\nTo view the result:")
@@ -232,9 +272,11 @@ def main():
         help="Paths to source repositories to merge (minimum 1)"
     )
     parser.add_argument(
-        "--no-subdirectories",
-        action="store_true",
-        help="Don't place each repository in its own subdirectory (may cause conflicts)"
+        "--strategy",
+        choices=["ours", "theirs", "manual"],
+        default="ours",
+        help="Conflict resolution strategy: 'ours' (keep all changes, leave conflicts unresolved), "
+             "'theirs' (accept all changes from source repos), 'manual' (prompt user to resolve conflicts)"
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -250,7 +292,7 @@ def main():
 
     try:
         merger = RepoMerger(args.target_repo, args.source_repos, verbose=args.verbose)
-        merger.merge(use_subdirectories=not args.no_subdirectories)
+        merger.merge(strategy=args.strategy)
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)

@@ -6,7 +6,7 @@ A Python script to merge multiple git repositories into a single repository, pre
 
 - Merges multiple git repositories into one target repository
 - Preserves complete git history from all source repositories
-- Option to place each repository in its own subdirectory (recommended)
+- Three conflict resolution strategies: automatic (theirs), unresolved (ours), or manual
 - Handles unrelated histories properly
 - No external dependencies (uses standard library)
 
@@ -28,24 +28,39 @@ python3 merge.py /path/to/merged-repo /path/to/repo1 /path/to/repo2 /path/to/rep
 
 This will:
 1. Create the target repository if it doesn't exist
-2. Merge each source repository, placing content in subdirectories (repo1/, repo2/, repo3/)
+2. Merge each source repository using git merge (conflicts resolved automatically with 'ours' strategy by default)
 3. Preserve all git history from each repository
 
 ### Options
 
-- `--no-subdirectories`: Merge without creating subdirectories (files from different repos may conflict)
+- `--strategy {ours,theirs,manual}`: Choose conflict resolution strategy (default: ours)
+  - `ours`: Keep all changes, commit with conflict markers in files
+  - `theirs`: Automatically accept all changes from source repositories
+  - `manual`: Prompt user to manually resolve conflicts as they occur
 - `-v, --verbose`: Enable verbose output to see all git commands
 - `-h, --help`: Show help message
 
-### Without Subdirectories
+### Conflict Resolution Strategies
 
-If you want to merge repositories without subdirectories (all files in root):
+When merging repositories with conflicting files (e.g., both have a README.md), you can choose how to handle conflicts:
 
+**Strategy A (ours)** - Default:
 ```bash
-python3 merge.py --no-subdirectories /path/to/merged-repo /path/to/repo1 /path/to/repo2
+python3 merge.py /path/to/merged-repo /path/to/repo1 /path/to/repo2
 ```
+Commits all changes with conflict markers preserved in files. You can resolve conflicts later.
 
-**Warning**: This may cause file conflicts if repositories have files with the same names.
+**Strategy B (theirs)**:
+```bash
+python3 merge.py --strategy theirs /path/to/merged-repo /path/to/repo1 /path/to/repo2
+```
+Automatically resolves conflicts by accepting changes from source repositories.
+
+**Strategy C (manual)**:
+```bash
+python3 merge.py --strategy manual /path/to/merged-repo /path/to/repo1 /path/to/repo2
+```
+Pauses when conflicts occur and prompts you to resolve them interactively.
 
 ## Requirements
 
@@ -111,8 +126,8 @@ docker run --rm -v /path/to/source1:/repos/source1:ro \
    - Adds the source as a git remote
    - Fetches all branches and history
    - Checks out the source content
-   - (Optional) Moves files to a subdirectory
    - Merges into the target repository using `--allow-unrelated-histories`
+   - Applies the selected conflict resolution strategy
 4. **Result**: A single repository containing all files and complete git history
 
 ## Example Scenario
@@ -137,12 +152,12 @@ Result:
 ```
 /projects/monorepo/
 ├── .git/            (contains full history)
-├── frontend/        (all frontend files)
-├── backend/         (all backend files)
-└── infrastructure/  (all infrastructure files)
+├── (all files from frontend, backend, and infrastructure merged)
 ```
 
 You can now run `git log --graph --oneline --all` to see the complete history from all three repositories.
+
+**Note**: If the repositories have conflicting files, use the `--strategy` option to control how conflicts are resolved.
 
 ## Notes
 
