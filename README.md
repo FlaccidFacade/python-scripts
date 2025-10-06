@@ -32,6 +32,26 @@ docker run --rm merge-script  # Runs tests
 
 See [merge/README.md](merge/README.md) for detailed documentation.
 
+### program-launcher/
+
+Launches multiple programs based on group definitions in a JSON file. Perfect for quickly starting your favorite sets of applications for different workflows.
+
+**Quick Start:**
+```bash
+cd program-launcher/
+python3 launcher.py lol  # Launch the "lol" group
+python3 launcher.py --list  # List all available groups
+```
+
+**Docker:**
+```bash
+cd program-launcher/
+docker build -t program-launcher .
+docker run --rm program-launcher  # Shows help
+```
+
+See [program-launcher/README.md](program-launcher/README.md) for detailed documentation.
+
 ## Development
 
 Each script directory is self-contained:

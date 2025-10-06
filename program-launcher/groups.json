@@ -1,0 +1,24 @@
+{
+  "groups": {
+    "lol": [
+      "league",
+      "professor",
+      "chrome tab with a speed check"
+    ],
+    "code": [
+      "vscode",
+      "chrome tab with github open"
+    ],
+    "work": [
+      "vscode",
+      "slack",
+      "chrome tab with google",
+      "spotify"
+    ],
+    "browse": [
+      "https://www.reddit.com",
+      "https://news.ycombinator.com",
+      "chrome"
+    ]
+  }
+}
