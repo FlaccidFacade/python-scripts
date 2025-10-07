@@ -1,5 +1,9 @@
 # Program Launcher
 
+[![CI](https://github.com/FlaccidFacade/python-scripts/actions/workflows/ci.yml/badge.svg)](https://github.com/FlaccidFacade/python-scripts/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/FlaccidFacade/python-scripts/branch/main/graph/badge.svg)](https://codecov.io/gh/FlaccidFacade/python-scripts)
+[![Python](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
+
 A Python script to open multiple programs based on group definitions in a JSON configuration file. Perfect for quickly launching your favorite sets of applications for different workflows (gaming, coding, work, etc.).
 
 ## Features
